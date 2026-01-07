@@ -61,38 +61,47 @@ response.then((resp) => {
   console.log(resp.inference.toString());
 
     // The structure is: response -> document -> inference -> prediction
-    const prediction = resp.inference.result;
+    const prediction = resp.inference.result.prediction;
     
     console.log(prediction)
 
-    // Access the generic map of fields
-    const fields = prediction.fields; 
+ // 2. Access 'line_items' (Which is a ListField)
+    const lineItemsField = prediction.fields.get("line_items");
 
-    console.log(fields);
-    // Based on your logs, the list is named "line_items"
-    const lineItemsField = fields.get("line_items");
-    
-    // In GeneratedV1, lists are accessed via .values
+    if (!lineItemsField) {
+      throw new Error("No line_items found in response");
+    }
+
+    // 3. Access the items array (ListField.values)
     const objectItems = lineItemsField.values; 
 
+    console.log(objectItems)
     const cleanItems = [];
 
-    // Loop over the list of Object fields (Rows)
-    for (const itemField of objectItems) {
-      // itemField is a Map of sub-fields. 
-      // Based on your logs, the sub-fields are "description" and "total_price"
-      
-      const descObj = itemField.get("description");
-      const priceObj = itemField.get("total_price");
+    // 4. Loop over ObjectField items
+    for (const item of objectItems) {
+      // item is an ObjectField.
+      // In the V4 SDK, ObjectField properties are stored in .fields (which is another Map)
+      const subFields = item.fields;
 
-      // Extract raw values
-      // Note: GeneratedV1 returns objects, we use .toString() or .content
-      const nameVal = descObj ? descObj.toString() : "Item";
-      const priceVal = priceObj ? parseFloat(priceObj.toString()) : 0;
+      // 5. Get Sub-Fields
+      const descField = subFields.get("description");
+      const priceField = subFields.get("total_price");
+
+      // 6. Extract Values
+      // SimpleField usually has a .value property, or .content / .toString()
+      const nameVal = descField ? (descField.value || descField.toString()) : "Item";
+      
+      // Price might be string or number, force float
+      let priceVal = 0;
+      if (priceField) {
+         // If it's a SimpleField, .value should be the number
+         priceVal = parseFloat(priceField.value || priceField.toString());
+      }
 
       if (priceVal > 0) {
         cleanItems.push({
-          name: nameVal.replace(/\n/g, " "), // Clean up newlines
+          name: nameVal.replace(/\n/g, " "),
           price: priceVal
         });
       }
@@ -100,7 +109,6 @@ response.then((resp) => {
 
     console.log(`Found ${cleanItems.length} items`);
     res.status(200).json({ items: cleanItems });
-
 });
 
   } catch (error) {
