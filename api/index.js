@@ -18,7 +18,7 @@ module.exports = async (req, res) => {
 
     // 2. Initialize Client
     // We use the standard Client, which supports V5 automatically
-    const mindeeClient = new mindee.Client({ apiKey: apiKey });
+    const mindeeClient = new mindee.ClientV2({ apiKey: apiKey });
 
     // 3. Prepare Buffer from Base64
     // Strip the "data:image/jpeg;base64," prefix if it exists
