@@ -11,12 +11,22 @@ module.exports = async (req, res) => {
   try {
     const { image } = req.body;
     const apiKey = process.env.MINDEE_API_KEY;
-    
+
     // Init a new client
     const mindeeClient = new mindee.ClientV2({ apiKey: apiKey });
     if (!image) throw new Error("No image provided");
     if (!apiKey) throw new Error("Missing MINDEE_API_KEY");
 
+    // 3. Prepare Buffer
+    // We strip the header "data:image/jpeg;base64," to get the raw string
+    const base64Data = image.includes(',') ? image.split(',')[1] : image;
+    // Create a native Node.js Buffer
+    const buffer = Buffer.from(base64Data, "base64");
+
+    const inputSource = new mindee.BufferInput({
+      buffer: buffer,
+      filename: "receipt.jpg", // Filename is required but can be arbitrary
+    });
 
     console.log("Enqueueing job to Mindee...");
     
@@ -38,8 +48,6 @@ const inferenceParams = {
   // Calculate confidence scores for all fields.
   confidence: undefined,
 };
-
-const inputSource = new mindee.PathInput({ inputPath: image });
 
 // Send for processing
 const response = mindeeClient.enqueueAndGetInference(
