@@ -72,7 +72,7 @@ response.then((resp) => {
     }
 
     // 3. Access the items array (ListField.values)
-    const objectItems = lineItemsField.simpleItems
+    const objectItems = lineItemsField.objectItems
 
     console.log(objectItems)
     const cleanItems = [];
@@ -82,8 +82,9 @@ response.then((resp) => {
       console.log(item)
       // item is an ObjectField.
       // In the V4 SDK, ObjectField properties are stored in .fields (which is another Map)
-      const subFields = item.fields;
+      const subFields = item.simpleFields;
 
+      console.log(subFields)
       // 5. Get Sub-Fields
       const descField = subFields.get("description");
       const priceField = subFields.get("total_price");
