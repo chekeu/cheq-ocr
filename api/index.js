@@ -5,9 +5,7 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end();
 
   try {
     const { image } = req.body;
@@ -17,49 +15,46 @@ module.exports = async (req, res) => {
     if (!apiKey) throw new Error("Missing MINDEE_API_KEY");
 
     // 2. Initialize Client
-    // We use the standard Client, which supports V5 automatically
-    const mindeeClient = new mindee.ClientV2({ apiKey: apiKey });
+    const mindeeClient = new mindee.Client({ apiKey: apiKey });
 
-    // 3. Prepare Buffer from Base64
-    // Strip the "data:image/jpeg;base64," prefix if it exists
+    // 3. Prepare Buffer
     const base64Data = image.includes(',') ? image.split(',')[1] : image;
     const buffer = Buffer.from(base64Data, "base64");
 
     // 4. Load Document
     const inputSource = mindeeClient.docFromBuffer(buffer, "receipt.jpg");
 
-    // 5. Parse using ReceiptV5 (Standard off-the-shelf model)
-    // We use 'parse' (Synchronous) instead of 'enqueue' (Async) 
-    // because Vercel functions have short timeouts.
-    console.log("Sending to Mindee ReceiptV5...");
+    console.log("Enqueueing job to Mindee...");
     
-    const apiResponse = await mindeeClient.parse(
-      mindee.product.ReceiptV5,
-      inputSource
+    // We use ReceiptV5 product class instead of a manual modelID string.
+    // This ensures it hits the "Expense Receipt" API you have the key for.
+    const response = await mindeeClient.enqueueAndGetInference(
+      mindee.product.ReceiptV5, 
+      inputSource,
+      {
+        maxRetries: 10
+      }
     );
 
     // 6. Extract Data
-    // The SDK parses the JSON into a clean object for us
-    const prediction = apiResponse.document.inference.prediction;
+    console.log("Job finished. Parsing results.");
+    const prediction = response.document.inference.prediction;
     const lineItems = prediction.lineItems || [];
 
-    // Map to Cheq format
     const cleanItems = lineItems.map((item) => ({
       name: item.description || "Item",
       price: item.totalAmount || 0
-    })).filter((i) => i.price > 0); // Remove zero-price noise
+    })).filter((i) => i.price > 0);
 
-    // 7. Success
-    console.log(`Found ${cleanItems.length} items`);
+    // 7. Return JSON
     res.status(200).json({ items: cleanItems });
 
   } catch (error) {
     console.error("OCR Error:", error);
-    
-    // Return specific error message to help debug
     res.status(500).json({ 
       error: error.message,
-      details: error.stack 
+      // If it's a timeout, give a specific hint
+      hint: error.message.includes("timed out") ? "Vercel function timed out waiting for OCR." : ""
     });
   }
 };
