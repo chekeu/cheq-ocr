@@ -37,8 +37,7 @@ const inferenceParams = {
   confidence: undefined,
 };
 
-// Load a file from disk
-const inputSource = new mindee.PathInput({ inputPath: filePath });
+const inputSource = new mindee.PathInput({ inputPath: image });
 
 // Send for processing
 const response = mindeeClient.enqueueAndGetInference(
