@@ -61,23 +61,44 @@ response.then((resp) => {
   console.log(resp.inference.toString());
 
     // The structure is: response -> document -> inference -> prediction
-    const prediction = resp.document.inference.prediction;
+    const prediction = resp.inference.result;
     
-    // Access the specific 'lineItems' property for ReceiptV5
-    const lineItems = prediction.lineItems || [];
+    console.log(prediction)
 
-    // Map to Cheq format { name, price }
-    const cleanItems = lineItems.map((item) => {
-      return {
-        // description is a string in ReceiptV5
-        name: item.description ? item.description.replace(/\n/g, " ") : "Item",
-        // totalAmount is the number property
-        price: item.totalAmount || 0 
-      };
-    }).filter((i) => i.price > 0); // Filter out zero-price items
+    // Access the generic map of fields
+    const fields = prediction.fields; 
+
+    console.log(fields);
+    // Based on your logs, the list is named "line_items"
+    const lineItemsField = fields.get("line_items");
+    
+    // In GeneratedV1, lists are accessed via .values
+    const objectItems = lineItemsField.values; 
+
+    const cleanItems = [];
+
+    // Loop over the list of Object fields (Rows)
+    for (const itemField of objectItems) {
+      // itemField is a Map of sub-fields. 
+      // Based on your logs, the sub-fields are "description" and "total_price"
+      
+      const descObj = itemField.get("description");
+      const priceObj = itemField.get("total_price");
+
+      // Extract raw values
+      // Note: GeneratedV1 returns objects, we use .toString() or .content
+      const nameVal = descObj ? descObj.toString() : "Item";
+      const priceVal = priceObj ? parseFloat(priceObj.toString()) : 0;
+
+      if (priceVal > 0) {
+        cleanItems.push({
+          name: nameVal.replace(/\n/g, " "), // Clean up newlines
+          price: priceVal
+        });
+      }
+    }
 
     console.log(`Found ${cleanItems.length} items`);
-
     res.status(200).json({ items: cleanItems });
 
 });
