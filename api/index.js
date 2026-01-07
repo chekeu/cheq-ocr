@@ -11,7 +11,9 @@ module.exports = async (req, res) => {
   try {
     const { image } = req.body;
     const apiKey = process.env.MINDEE_API_KEY;
-
+    
+    // Init a new client
+    const mindeeClient = new mindee.ClientV2({ apiKey: apiKey });
     if (!image) throw new Error("No image provided");
     if (!apiKey) throw new Error("Missing MINDEE_API_KEY");
 
