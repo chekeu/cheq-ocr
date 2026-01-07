@@ -1,4 +1,5 @@
 const mindee = require("mindee");
+const modelId = "a1bf935b-a4ad-463b-a491-5fa26b99a9de";
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -14,40 +15,46 @@ module.exports = async (req, res) => {
     if (!image) throw new Error("No image provided");
     if (!apiKey) throw new Error("Missing MINDEE_API_KEY");
 
-    // 2. Initialize Client
-    const mindeeClient = new mindee.Client({ apiKey: apiKey });
-
-    // 3. Prepare Buffer
-    const base64Data = image.includes(',') ? image.split(',')[1] : image;
-    const buffer = Buffer.from(base64Data, "base64");
-
-    // 4. Load Document
-    const inputSource = mindeeClient.docFromBuffer(buffer, "receipt.jpg");
 
     console.log("Enqueueing job to Mindee...");
     
-    // We use ReceiptV5 product class instead of a manual modelID string.
-    // This ensures it hits the "Expense Receipt" API you have the key for.
-    const response = await mindeeClient.enqueueAndGetInference(
-      mindee.product.ReceiptV5, 
-      inputSource,
-      {
-        maxRetries: 10
-      }
-    );
+   
+// Set inference parameters
+const inferenceParams = {
+  // ID of the model, required.
+  modelId: modelId,
 
-    // 6. Extract Data
-    console.log("Job finished. Parsing results.");
-    const prediction = response.document.inference.prediction;
-    const lineItems = prediction.lineItems || [];
+  // Options: set to `true` or `false` to override defaults
 
-    const cleanItems = lineItems.map((item) => ({
-      name: item.description || "Item",
-      price: item.totalAmount || 0
-    })).filter((i) => i.price > 0);
+  // Enhance extraction accuracy with Retrieval-Augmented Generation.
+  rag: undefined,
+  // Extract the full text content from the document as strings.
+  rawText: undefined,
+  // Calculate bounding box polygons for all fields.
+  polygon: undefined,
+  // Boost the precision and accuracy of all extractions.
+  // Calculate confidence scores for all fields.
+  confidence: undefined,
+};
 
-    // 7. Return JSON
-    res.status(200).json({ items: cleanItems });
+// Load a file from disk
+const inputSource = new mindee.PathInput({ inputPath: filePath });
+
+// Send for processing
+const response = mindeeClient.enqueueAndGetInference(
+  inputSource,
+  inferenceParams
+);
+
+// Handle the response Promise
+response.then((resp) => {
+  // print a string summary
+  console.log(resp.inference.toString());
+  
+  // Access the result fields
+  const fields = response.inference.result.fields;
+  console.log(fields);
+});
 
   } catch (error) {
     console.error("OCR Error:", error);
