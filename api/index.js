@@ -57,12 +57,29 @@ const response = mindeeClient.enqueueAndGetInference(
 
 // Handle the response Promise
 response.then((resp) => {
-  // print a string summary
+  console.log("Job finished. Parsing results.");
   console.log(resp.inference.toString());
-  
-  // Access the result fields
-  const fields = response.inference.result.fields;
-  console.log(fields);
+
+    // The structure is: response -> document -> inference -> prediction
+    const prediction = resp.document.inference.prediction;
+    
+    // Access the specific 'lineItems' property for ReceiptV5
+    const lineItems = prediction.lineItems || [];
+
+    // Map to Cheq format { name, price }
+    const cleanItems = lineItems.map((item) => {
+      return {
+        // description is a string in ReceiptV5
+        name: item.description ? item.description.replace(/\n/g, " ") : "Item",
+        // totalAmount is the number property
+        price: item.totalAmount || 0 
+      };
+    }).filter((i) => i.price > 0); // Filter out zero-price items
+
+    console.log(`Found ${cleanItems.length} items`);
+
+    res.status(200).json({ items: cleanItems });
+
 });
 
   } catch (error) {
