@@ -17,10 +17,8 @@ module.exports = async (req, res) => {
     if (!image) throw new Error("No image provided");
     if (!apiKey) throw new Error("Missing MINDEE_API_KEY");
 
-    // 3. Prepare Buffer
     // We strip the header "data:image/jpeg;base64," to get the raw string
     const base64Data = image.includes(',') ? image.split(',')[1] : image;
-    // Create a native Node.js Buffer
     const buffer = Buffer.from(base64Data, "base64");
 
     const inputSource = new mindee.BufferInput({
@@ -35,9 +33,7 @@ module.exports = async (req, res) => {
 const inferenceParams = {
   // ID of the model, required.
   modelId: modelId,
-
   // Options: set to `true` or `false` to override defaults
-
   // Enhance extraction accuracy with Retrieval-Augmented Generation.
   rag: undefined,
   // Extract the full text content from the document as strings.
@@ -62,11 +58,9 @@ response.then((resp) => {
 
     // The structure is: response -> document -> inference -> prediction
     const prediction = resp.inference.result.fields;
-
     console.log(prediction);
     const lineItemsField = prediction.getListField("line_items");
 
-    console.log(lineItemsField);
     if (!lineItemsField) {
       throw new Error("No line_items found in response");
     }
@@ -117,8 +111,32 @@ response.then((resp) => {
         }
       }
     }
+
+    const getFloat = (key) => {
+      const field = prediction.get(key);
+      return (field && field.value !== null) ? parseFloat(field.value) : 0;
+    };
+
+    // Helper to get string value safely
+    const getString = (key) => {
+      const field = prediction.get(key);
+      return (field && field.value) ? field.value.toString() : "";
+    };
+
+
+     const metadata = {
+      store: getString("supplier_name"),
+      date: getString("date"),
+      time: getString("time"),
+      total: getFloat("total_amount"),
+      subtotal: getFloat("total_net"),
+      tax: getFloat("total_tax"),
+      tip: getFloat("tips_gratuity")
+    };
+
+    console.log(metadata);
     console.log(`Found ${cleanItems.length} items`);
-    res.status(200).json({ items: cleanItems });
+    res.status(200).json({ items: cleanItems, metadata });
 });
 
   } catch (error) {
