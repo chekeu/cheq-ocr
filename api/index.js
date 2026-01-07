@@ -64,14 +64,15 @@ response.then((resp) => {
     const prediction = resp.inference.result.fields;
 
     console.log(prediction);
-    const lineItemsField = prediction.get("line_items");
+    const lineItemsField = prediction.getListField("line_items");
 
+    console.log(lineItemsField);
     if (!lineItemsField) {
       throw new Error("No line_items found in response");
     }
 
     // 3. Access the items array (ListField.values)
-    const objectItems = lineItemsField.values; 
+    const objectItems = lineItemsField
 
     console.log(objectItems)
     const cleanItems = [];
