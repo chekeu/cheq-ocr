@@ -72,13 +72,14 @@ response.then((resp) => {
     }
 
     // 3. Access the items array (ListField.values)
-    const objectItems = lineItemsField
+    const objectItems = lineItemsField.simpleItems
 
     console.log(objectItems)
     const cleanItems = [];
 
     // 4. Loop over ObjectField items
     for (const item of objectItems) {
+      console.log(item)
       // item is an ObjectField.
       // In the V4 SDK, ObjectField properties are stored in .fields (which is another Map)
       const subFields = item.fields;
