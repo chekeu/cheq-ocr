@@ -61,12 +61,10 @@ response.then((resp) => {
   console.log(resp.inference.toString());
 
     // The structure is: response -> document -> inference -> prediction
-    const prediction = resp.inference.result.prediction;
-    
-    console.log(prediction)
+    const prediction = resp.inference.result.fields;
 
- // 2. Access 'line_items' (Which is a ListField)
-    const lineItemsField = prediction.fields.get("line_items");
+    console.log(prediction);
+    const lineItemsField = prediction.get("line_items");
 
     if (!lineItemsField) {
       throw new Error("No line_items found in response");
