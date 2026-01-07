@@ -77,37 +77,46 @@ response.then((resp) => {
     console.log(objectItems)
     const cleanItems = [];
 
-    // 4. Loop over ObjectField items
     for (const item of objectItems) {
-      console.log(item)
-      // item is an ObjectField.
-      // In the V4 SDK, ObjectField properties are stored in .fields (which is another Map)
+      // Access the sub-map using simpleFields as you discovered
       const subFields = item.simpleFields;
 
-      console.log(subFields)
-      // 5. Get Sub-Fields
+      // Get fields
       const descField = subFields.get("description");
-      const priceField = subFields.get("total_price");
+      const quantityField = subFields.get("quantity");
+      const unitPriceField = subFields.get("unit_price");
+      const totalPriceField = subFields.get("total_price");
 
-      // 6. Extract Values
-      // SimpleField usually has a .value property, or .content / .toString()
+      // Extract Name
       const nameVal = descField ? (descField.value || descField.toString()) : "Item";
       
-      // Price might be string or number, force float
-      let priceVal = 0;
-      if (priceField) {
-         // If it's a SimpleField, .value should be the number
-         priceVal = parseFloat(priceField.value || priceField.toString());
+      // Extract Quantity (Default to 1)
+      let quantity = 1;
+      if (quantityField && quantityField.value !== null) {
+        quantity = parseFloat(quantityField.value);
       }
 
-      if (priceVal > 0) {
-        cleanItems.push({
-          name: nameVal.replace(/\n/g, " "),
-          price: priceVal
-        });
+      // Determine Individual Price
+      // Priority: Unit Price > (Total Price / Quantity) > Total Price
+      let singlePrice = 0;
+
+      if (unitPriceField && unitPriceField.value !== null) {
+        singlePrice = parseFloat(unitPriceField.value);
+      } else if (totalPriceField && totalPriceField.value !== null) {
+        const total = parseFloat(totalPriceField.value);
+        singlePrice = total / quantity;
+      }
+
+      // Push individual items based on quantity
+      if (singlePrice > 0) {
+        for (let i = 0; i < quantity; i++) {
+          cleanItems.push({
+            name: nameVal.replace(/\n/g, " "),
+            price: singlePrice
+          });
+        }
       }
     }
-
     console.log(`Found ${cleanItems.length} items`);
     res.status(200).json({ items: cleanItems });
 });
