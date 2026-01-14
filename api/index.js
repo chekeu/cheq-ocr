@@ -123,7 +123,7 @@ module.exports = async (req, res) => {
     // Return with 'meta' key to match frontend expectation
     res.status(200).json({ 
       items: cleanItems, 
-      meta: metadata 
+      metadata 
     });
 
   } catch (error) {
