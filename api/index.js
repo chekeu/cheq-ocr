@@ -1,7 +1,7 @@
 const mindee = require("mindee");
-const modelId = "a1bf935b-a4ad-463b-a491-5fa26b99a9de";
 
 module.exports = async (req, res) => {
+  // 1. CORS Headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -10,90 +10,75 @@ module.exports = async (req, res) => {
 
   try {
     const { image } = req.body;
+    
+    // 2. Load Environment Variables
     const apiKey = process.env.MINDEE_API_KEY;
+    const modelId = process.env.MINDEE_MODEL_ID; 
 
-    // Init a new client
-    const mindeeClient = new mindee.ClientV2({ apiKey: apiKey });
     if (!image) throw new Error("No image provided");
     if (!apiKey) throw new Error("Missing MINDEE_API_KEY");
+    if (!modelId) throw new Error("Missing MINDEE_MODEL_ID");
 
-    // We strip the header "data:image/jpeg;base64," to get the raw string
+    const mindeeClient = new mindee.ClientV2({ apiKey: apiKey });
+
+    // 4. Prepare Buffer
     const base64Data = image.includes(',') ? image.split(',')[1] : image;
     const buffer = Buffer.from(base64Data, "base64");
 
     const inputSource = new mindee.BufferInput({
       buffer: buffer,
-      filename: "receipt.jpg", // Filename is required but can be arbitrary
+      filename: "receipt.jpg",
     });
 
     console.log("Enqueueing job to Mindee...");
+
+    // 5. Inference Parameters
+    const inferenceParams = {
+      modelId: modelId,
+      rag: undefined,
+      rawText: undefined,
+      polygon: undefined,
+      confidence: undefined,
+    };
+
+    // 6. Send & Await (Converted from .then to await for cleaner serverless execution)
+    const resp = await mindeeClient.enqueueAndGetInference(
+      inputSource,
+      inferenceParams
+    );
+
+    console.log("Job finished. Parsing results.");
     
-   
-// Set inference parameters
-const inferenceParams = {
-  // ID of the model, required.
-  modelId: modelId,
-  // Options: set to `true` or `false` to override defaults
-  // Enhance extraction accuracy with Retrieval-Augmented Generation.
-  rag: undefined,
-  // Extract the full text content from the document as strings.
-  rawText: undefined,
-  // Calculate bounding box polygons for all fields.
-  polygon: undefined,
-  // Boost the precision and accuracy of all extractions.
-  // Calculate confidence scores for all fields.
-  confidence: undefined,
-};
-
-// Send for processing
-const response = mindeeClient.enqueueAndGetInference(
-  inputSource,
-  inferenceParams
-);
-
-// Handle the response Promise
-response.then((resp) => {
-  console.log("Job finished. Parsing results.");
-  console.log(resp.inference.toString());
-
-    // The structure is: response -> document -> inference -> prediction
+    // 7. Parsing Logic (Your custom logic)
     const prediction = resp.inference.result.fields;
     console.log(prediction);
-    const lineItemsField = prediction.getListField("line_items");
 
+    // Get List Field
+    const lineItemsField = prediction.getListField("line_items");
     if (!lineItemsField) {
       throw new Error("No line_items found in response");
     }
 
-    // 3. Access the items array (ListField.values)
-    const objectItems = lineItemsField.objectItems
-
-    console.log(objectItems)
+    const objectItems = lineItemsField.objectItems;
     const cleanItems = [];
 
+    // Loop items
     for (const item of objectItems) {
-      // Access the sub-map using simpleFields as you discovered
       const subFields = item.simpleFields;
 
-      // Get fields
       const descField = subFields.get("description");
       const quantityField = subFields.get("quantity");
       const unitPriceField = subFields.get("unit_price");
       const totalPriceField = subFields.get("total_price");
 
-      // Extract Name
       const nameVal = descField ? (descField.value || descField.toString()) : "Item";
       
-      // Extract Quantity (Default to 1)
       let quantity = 1;
       if (quantityField && quantityField.value !== null) {
         quantity = parseFloat(quantityField.value);
       }
 
-      // Determine Individual Price
-      // Priority: Unit Price > (Total Price / Quantity) > Total Price
       let singlePrice = 0;
-
       if (unitPriceField && unitPriceField.value !== null) {
         singlePrice = parseFloat(unitPriceField.value);
       } else if (totalPriceField && totalPriceField.value !== null) {
@@ -101,7 +86,7 @@ response.then((resp) => {
         singlePrice = total / quantity;
       }
 
-      // Push individual items based on quantity
+      // Unroll quantities
       if (singlePrice > 0) {
         for (let i = 0; i < quantity; i++) {
           cleanItems.push({
@@ -112,19 +97,18 @@ response.then((resp) => {
       }
     }
 
+    // 8. Extract Metadata
     const getFloat = (key) => {
       const field = prediction.get(key);
       return (field && field.value !== null) ? parseFloat(field.value) : 0;
     };
 
-    // Helper to get string value safely
     const getString = (key) => {
       const field = prediction.get(key);
       return (field && field.value) ? field.value.toString() : "";
     };
 
-
-     const metadata = {
+    const metadata = {
       store: getString("supplier_name"),
       date: getString("date"),
       time: getString("time"),
@@ -133,17 +117,19 @@ response.then((resp) => {
       tax: getFloat("total_tax"),
       tip: getFloat("tips_gratuity")
     };
-
     console.log(metadata);
     console.log(`Found ${cleanItems.length} items`);
-    res.status(200).json({ items: cleanItems, metadata });
-});
+    
+    // Return with 'meta' key to match frontend expectation
+    res.status(200).json({ 
+      items: cleanItems, 
+      meta: metadata 
+    });
 
   } catch (error) {
     console.error("OCR Error:", error);
     res.status(500).json({ 
       error: error.message,
-      // If it's a timeout, give a specific hint
       hint: error.message.includes("timed out") ? "Vercel function timed out waiting for OCR." : ""
     });
   }
